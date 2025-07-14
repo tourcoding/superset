@@ -1,0 +1,88 @@
+# .github/workflows/docker-prod.yml
+
+name: Build and Push Superset to GHCR and ACR
+
+# 关键修改: 更新触发器
+on:
+  push:
+    # 场景1: 当有代码提交到 'prod' 分支时触发
+    branches:
+      - 'prod-based-on-5.0.0'
+    # 场景2: 当有符合语义化版本格式的标签被推送到仓库时触发
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+' # 匹配 v1.0.0, v1.2.3 等
+      - '[0-9]+.[0-9]+.[0-9]+'  # 匹配 1.0.0, 1.2.3 等 (不带'v')
+
+  # 允许手动触发
+  workflow_dispatch:
+
+# 并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push-ghcr:
+    name: Build and Push to GitHub Container Registry
+    runs-on: ubuntu-22.04
+
+    # 权限设置，允许写入 GHCR
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # 步骤 1: 检出代码
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+
+      # 步骤 2: 登录到 GitHub Container Registry (GHCR)
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Alibaba Cloud Container Registry (ACR)
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ACR_ACCESS_KEY_ID }}
+          password: ${{ secrets.ACR_ACCESS_KEY_SECRET }}
+
+      # 步骤 3: 设置 Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 步骤 4: 构建镜像--具有条件逻辑的元数据和标签提取
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}-prod
+            registry.cn-hangzhou.aliyuncs.com/tourcoding/superset-prod
+          tags: |
+            # 类型1: 仅当触发事件是 'prod' 分支的 push 时，才将 latest 设为默认分支的标志
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/prod-based-on-5.0.0' }}
+
+            # 类型2: 为所有事件生成 git commit sha 短哈希标签
+            type=sha,format=short
+
+            # 类型3: 仅当触发事件是推送一个 "tag" 时，才生成版本标签
+            # 它会自动提取你推送的 tag 名称 (如 5.0.0) 作为镜像标签
+            type=ref,event=tag
+
+      # 步骤 5: 构建并推送 Docker 镜像
+      - name: Build and push Docker image to GHCR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: prod
+          push: true
+          # 使用上一步按条件生成的标签
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64

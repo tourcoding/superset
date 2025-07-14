@@ -24,7 +24,7 @@ ARG PY_VER=3.11.13-slim-bookworm
 ARG BUILDPLATFORM=${BUILDPLATFORM:-amd64}
 
 # Include translations in the final build
-ARG BUILD_TRANSLATIONS="false"
+ARG BUILD_TRANSLATIONS="true"
 
 ######################################################################
 # superset-node-ci used as a base for building frontend assets and CI
@@ -261,3 +261,47 @@ USER root
 RUN uv pip install .[postgres]
 USER superset
 CMD ["/app/docker/entrypoints/docker-ci.sh"]
+
+
+######################################################################
+# Final prod image...
+######################################################################
+FROM lean AS prod
+
+USER root
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/playwright-browsers
+
+# 1. 安装基础构建工具和常用数据库的客户端开发库
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      # 基础构建工具
+      build-essential \
+      # PostgreSQL 驱动依赖 (虽然 psycopg2-binary 不需要，但保留无害，且有些工具可能用到)
+      libpq-dev \
+      # MySQL 驱动依赖
+      default-libmysqlclient-dev \
+      libmariadb-dev \
+      pkg-config \
+      # sql server驱动依赖
+      freetds-dev \
+      && rm -rf /var/lib/apt/lists/*
+
+# 2. 使用 uv 安装 Python 包及 Playwright 浏览器
+RUN . /app/.venv/bin/activate && \
+      uv pip install \
+      # 数据库驱动
+      mysqlclient \
+      psycopg2-binary  \
+      pymssql  \
+      # single-sign on authentication
+      Authlib  \
+      # openpyxl to be able to upload Excel files
+      openpyxl \
+      # Pillow for Alerts & Reports to generate PDFs of dashboards
+      Pillow \
+      # 报告与缩略图
+      playwright \
+      # 使用 playwright 的命令自动安装系统依赖和浏览器
+      && playwright install-deps \
+      && PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/playwright-browsers playwright install chromium
+
+USER superset
