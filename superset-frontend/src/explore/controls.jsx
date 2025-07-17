@@ -86,10 +86,10 @@ export const D3_FORMAT_OPTIONS = [
   ['+,', '+, (12345.432 => +12,345.432)'],
   ['$,.2f', '$,.2f (12345.432 => $12,345.43)'],
   ['DURATION', t('Duration in ms (66000 => 1m 6s)')],
-  ['DURATION_SUB', t('Duration in ms (100.40008 => 100ms 400µs 80ns)')],
+  ['DURATION_SUB', t('Duration in ms (100.40008 => 100ms 400碌s 80ns)')],
 ];
 
-const ROW_LIMIT_OPTIONS = [10, 50, 100, 250, 500, 1000, 5000, 10000, 50000];
+const ROW_LIMIT_OPTIONS = [500, 1000, 5000, 10000, 50000, 100000,3000000, 5000000, 1000000,2000000,3000000,4000000,5000000];
 
 const SERIES_LIMITS = [5, 10, 25, 50, 100, 500];
 
