@@ -271,36 +271,31 @@ FROM lean AS prod
 USER root
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/playwright-browsers
 
-# 1. 安装基础构建工具和常用数据库的客户端开发库
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      # 基础构建工具
       build-essential \
-      # PostgreSQL 驱动依赖 (虽然 psycopg2-binary 不需要，但保留无害，且有些工具可能用到)
+      # PostgreSQL
       libpq-dev \
-      # MySQL 驱动依赖
+      # MySQL drivers dependencies
       default-libmysqlclient-dev \
       libmariadb-dev \
       pkg-config \
-      # sql server驱动依赖
+      # sql server drivers dependencies
       freetds-dev \
       && rm -rf /var/lib/apt/lists/*
 
-# 2. 使用 uv 安装 Python 包及 Playwright 浏览器
 RUN . /app/.venv/bin/activate && \
       uv pip install \
-      # 数据库驱动
       mysqlclient \
       psycopg2-binary  \
       pymssql  \
+      pydoris \
       # single-sign on authentication
       Authlib  \
       # openpyxl to be able to upload Excel files
       openpyxl \
       # Pillow for Alerts & Reports to generate PDFs of dashboards
       Pillow \
-      # 报告与缩略图
       playwright \
-      # 使用 playwright 的命令自动安装系统依赖和浏览器
       && playwright install-deps \
       && PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/playwright-browsers playwright install chromium
 
